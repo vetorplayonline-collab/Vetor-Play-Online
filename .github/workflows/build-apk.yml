@@ -1,0 +1,43 @@
+name: Gerar APK Vetor Play Online
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ "projeto-vetorplay.zip" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Abrir o projeto
+        run: |
+          if [ -f projeto-vetorplay.zip ]; then
+            mkdir -p src && unzip -q -o projeto-vetorplay.zip -d src
+          else
+            echo "Envie o arquivo projeto-vetorplay.zip para gerar o APK." && exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar APK
+        working-directory: src
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../saida
+          cp app/build/outputs/apk/release/app-release.apk ../saida/VetorPlayOnline.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VetorPlayOnline-apk
+          path: saida/VetorPlayOnline.apk
