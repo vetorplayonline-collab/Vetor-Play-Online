@@ -1,0 +1,65 @@
+name: Gerar APK Vetor Play Online
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ "projeto-vetorplay.zip" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Abrir o projeto
+        run: |
+          mkdir -p src && unzip -q -o projeto-vetorplay.zip -d src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Chave de assinatura
+        env:
+          KS_B64: ${{ secrets.VETOR_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/vetorplay.jks"
+            echo "VETOR_KEYSTORE=$RUNNER_TEMP/vetorplay.jks" >> "$GITHUB_ENV"
+            echo "Usando a chave fixa da Vetor Play Online"
+          else
+            echo "AVISO: chave nao cadastrada; APK sai com chave de teste"
+          fi
+
+      - name: Compilar APK
+        working-directory: src
+        env:
+          VETOR_KEYSTORE_PASS: ${{ secrets.VETOR_KEYSTORE_PASS }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p ../saida
+          cp app/build/outputs/apk/release/app-release.apk ../saida/VetorPlayOnline.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VetorPlayOnline-apk
+          path: saida/VetorPlayOnline.apk
+
+      - name: Publicar versao para atualizacao automatica
+        if: ${{ env.VETOR_KEYSTORE != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ github.run_number }}" saida/VetorPlayOnline.apk \
+            --repo "${{ github.repository }}" \
+            --title "Vetor Play Online 1.0.${{ github.run_number }}" \
+            --notes "Atualizacao gerada em $(date -u +%d/%m/%Y)" \
+            --target "${{ github.sha }}" --latest
