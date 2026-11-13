@@ -31,7 +31,7 @@ jobs:
           KS_B64: ${{ secrets.VETOR_KEYSTORE_B64 }}
         run: |
           if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/vetorplay.jks"
+            printf '%s' "$KS_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > "$RUNNER_TEMP/vetorplay.jks"
             echo "VETOR_KEYSTORE=$RUNNER_TEMP/vetorplay.jks" >> "$GITHUB_ENV"
             echo "Usando a chave fixa da Vetor Play Online"
           else
