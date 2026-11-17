@@ -1,0 +1,60 @@
+name: Gerar Windows Vetor Play Online
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ "projeto-windows.zip" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Abrir o projeto
+        shell: pwsh
+        run: Expand-Archive -Path projeto-windows.zip -DestinationPath src -Force
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Numero da versao
+        working-directory: src
+        shell: pwsh
+        run: npm pkg set version=1.0.${{ github.run_number }}
+
+      - name: Instalar dependencias
+        working-directory: src
+        run: npm install --no-audit --no-fund
+
+      - name: Gerar instalador
+        working-directory: src
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VetorPlayOnline-windows
+          path: src/dist/VetorPlayOnline-Setup.exe
+
+      # Fica sempre no mesmo link (tag "windows"), sem mexer na versao "latest" do APK Android
+      - name: Publicar para download
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="1.0.${{ github.run_number }}"
+          NOTES="Instalador para Windows 10/11 gerado em $(date -u +%d/%m/%Y)"
+          if gh release view windows --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload windows src/dist/VetorPlayOnline-Setup.exe --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit windows --title "Vetor Play Online Windows $V" --notes "$NOTES" --latest=false --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create windows src/dist/VetorPlayOnline-Setup.exe --title "Vetor Play Online Windows $V" \
+              --notes "$NOTES" --latest=false --target "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
+          fi
